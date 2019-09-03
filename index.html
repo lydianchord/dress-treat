@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dress Treat!</title>
+    <style>
+      body {
+        padding: 0;
+        margin: 0;
+        transform-origin: top left;
+      }
+      
+      @media (max-height: 479px) {
+        body {
+          transform: scale(0.8625);
+        }
+      }
+      
+      @media (max-height: 413px) {
+        body {
+          transform: scale(0.85625);
+        }
+      }
+      
+      @media (max-height: 410px) {
+        body {
+          transform: scale(0.78125);
+        }
+      }
+      
+      @media (max-height: 374px) {
+        body {
+          transform: scale(0.75);
+        }
+      }
+      
+      @media (max-height: 359px) {
+        body {
+          transform: scale(0.66666);
+        }
+      }
+      
+      @media (max-height: 319px) {
+        body {
+          transform: scale(0.5);
+        }
+      }
+    </style>
+    <script src="p5/p5.min.js"></script>
+    <script src="p5/p5.dom.min.js"></script>
+    <script src="p5/p5.sound.min.js"></script>
+  </head>
+  <body>
+    <div id="p5_loading"><img src="img/loadscreen.png" width="720" height="480"></div>
+    <script>
+      "use strict";
+      
+      var canvasW = 720;
+      var canvasH = 480;
+      
+      var bgm;
+      
+      var splash;
+      var startBtn;
+      
+      var dressupScreen;
+      var treatBase;
+      var glasses;
+      
+      var backdrops = [];
+      var hair = [];
+      var faces = [];
+      var tops = [];
+      var bottoms = [];
+      var backs = [];
+      
+      var totalBackdrops = 7;
+      var totalOptions = [20, 33, 33, 33, 17];
+      
+      var currentBackdrop = 0;
+      var currentOutfit = [0, 0, 0, 0, 0];
+      var showGlasses = false;
+      
+      var started = false;
+      
+      
+      function mod(n, m) {
+        return ((n % m) + m) % m;
+      }
+      
+      
+      function halveSize(img) {
+        img.resize(img.width / 2, img.height / 2);
+      }
+      
+      
+      function loadOutfitOptions(partName, partArray, total) {
+        for (var i = 1; i <= total; i++) {
+          partArray.push(loadImage(
+            "img/parts/" + partName + "_" + ("000" + i).slice(-3) + ".png",
+            halveSize
+          ));
+        }
+      }
+      
+      
+      function imgBtn(btnName, xPos, yPos, preserveSize, newWidth, newHeight, hasClickedVariant) {
+        var srcBase = "img/buttons/" + btnName + "_";
+        var src = srcBase + "idle.png";
+        var img;
+        
+        if (!preserveSize) {
+          img = createImg(src, function () {
+            if (!this.alreadyResized) {
+              var originalSize = this.size();
+              this.size(originalSize.width / 2, originalSize.height / 2);
+              this.alreadyResized = true;
+            }
+          });
+        } else {
+          img = createImg(src);
+          if (newWidth) {
+            img.size(newWidth, newHeight);
+          }
+        }
+        
+        img.position(xPos, yPos);
+        img.srcBase = srcBase;
+        
+        if (hasClickedVariant) {
+          img.clickedVariant = "click.png";
+        } else {
+          img.clickedVariant = "idle.png";
+        }
+        
+        img.mouseOver(function () {
+          this.elt.src = this.srcBase + "hover.png";
+        });
+        img.mouseOut(function () {
+          this.elt.src = this.srcBase + "idle.png";
+        });
+        img.mousePressed(function () {
+          this.elt.src = this.srcBase + this.clickedVariant;
+        });
+        img.mouseReleased(function () {
+          this.elt.src = this.srcBase + "hover.png";
+        });
+        
+        return img;
+      }
+      
+      
+      function preload() {
+        soundFormats("ogg", "mp3");
+        bgm = loadSound("audio/dresstreat.ogg");
+        
+        splash = loadImage("img/REF_loadscreen.png", halveSize);
+        dressupScreen = loadImage("img/dressupscreen.png", halveSize);
+        treatBase = loadImage("img/treatbase.png", halveSize);
+        glasses = loadImage("img/parts/glasses.png", halveSize);
+        
+        var buttonFiles = [
+          "start_idle",
+          "start_hover",
+          "start_click",
+          "prev_idle",
+          "prev_hover",
+          "next_idle",
+          "next_hover",
+          "toggleglasses_idle",
+          "toggleglasses_hover",
+          "reset_idle",
+          "reset_hover",
+          "random_idle",
+          "random_hover",
+          "random_click",
+          "music_on_idle",
+          "music_on_hover",
+          "music_off_idle",
+          "music_off_hover"
+        ];
+        
+        for (var i = 0; i < buttonFiles.length; i++) {
+          loadImage("img/buttons/" + buttonFiles[i] + ".png");
+        }
+        
+        for (var i = 1; i <= totalBackdrops; i++) {
+          loadImage("img/buttons/bg" + i + "_idle.png");
+          loadImage("img/buttons/bg" + i + "_hover.png");
+          backdrops.push(loadImage("img/backdrop_00" + i + ".png", halveSize));
+        }
+        
+        loadOutfitOptions("face", faces, totalOptions[0]);
+        loadOutfitOptions("hair", hair, totalOptions[1]);
+        loadOutfitOptions("top", tops, totalOptions[2]);
+        loadOutfitOptions("bottom", bottoms, totalOptions[3]);
+        loadOutfitOptions("back", backs, totalOptions[4]);
+      }
+      
+      
+      function setup() {
+        createCanvas(canvasW, canvasH);
+        frameRate(30);
+        
+        image(splash, 0, 0);
+        startBtn = imgBtn("start", 330, 210, true, null, null, true);
+        startBtn.mouseClicked(interfaceSetup);
+      }
+      
+      
+      function interfaceSetup() {
+        var btnW = 26;
+        var btnH = btnW * (58 / 60);
+        var menuButtonsY = [160, 201, 245, 285, 327];
+        var bgButtonsY = [97, 134, 170, 207, 243, 281, 317];
+        
+        for (var i = 0; i < menuButtonsY.length; i++) {
+          var prevBtn = imgBtn("prev", 155, menuButtonsY[i], true, btnW, btnH);
+          prevBtn.idx = i;
+          prevBtn.mouseClicked(function () {
+            currentOutfit[this.idx] = mod(currentOutfit[this.idx] - 1, totalOptions[this.idx]);
+          });
+          var nextBtn = imgBtn("next", 217, menuButtonsY[i], true, btnW, btnH);
+          nextBtn.idx = i;
+          nextBtn.mouseClicked(function () {
+            currentOutfit[this.idx] = mod(currentOutfit[this.idx] + 1, totalOptions[this.idx]);
+          });
+        }
+        
+        var glassesBtn = imgBtn("toggleglasses", 152, 363, true, 39, 39 * (51 / 84));
+        glassesBtn.mouseClicked(function () {
+          showGlasses = !showGlasses;
+        });
+        
+        var resetBtn = imgBtn("reset", 652, 4, true);
+        resetBtn.mouseClicked(function () {
+          currentOutfit = [0, 0, 0, 0, 0];
+          currentBackdrop = 0;
+          showGlasses = false;
+        });
+        
+        var randomizeBtn = imgBtn("random", 657, 373, false, null, null, true);
+        randomizeBtn.mouseClicked(function () {
+          for (var i = 0; i < currentOutfit.length; i++) {
+            currentOutfit[i] = Math.floor(Math.random() * totalOptions[i]);
+          }
+        });
+        
+        var musicBtn = imgBtn("music_on", 656, 423, false);
+        musicBtn.mouseClicked(function () {
+          if (this.srcBase.search(/_on/) !== -1) {
+            bgm.stop();
+            this.srcBase = this.srcBase.replace("_on", "_off");
+          } else {
+            bgm.play();
+            this.srcBase = this.srcBase.replace("_off", "_on");
+          }
+          this.elt.src = this.srcBase + "hover.png";
+        });
+        
+        for (var i = 0; i < bgButtonsY.length; i++) {
+          var bgBtn = imgBtn("bg" + (i + 1), 667, bgButtonsY[i]);
+          bgBtn.idx = i;
+          bgBtn.mouseClicked(function () {
+            currentBackdrop = this.idx;
+          });
+        }
+        
+        bgm.setVolume(0.3);
+        bgm.loop();
+        
+        startBtn.remove();
+        started = true;
+      }
+      
+      
+      function draw() {
+        if (started) {
+          clear();
+          
+          image(backdrops[currentBackdrop], 256, -30);
+          image(dressupScreen, 0, 0);
+          image(backs[currentOutfit[4]], 19, 202);
+          image(treatBase, 0, 0);
+          image(hair[currentOutfit[1]], 19, 5);
+          image(bottoms[currentOutfit[3]], 19, 219);
+          image(tops[currentOutfit[2]], 19, 184);
+          image(faces[currentOutfit[0]], 19, 108);
+          
+          if (showGlasses) {
+            image(glasses, 447, 153);
+          }
+        }
+      }
+    </script>
+  </body>
+</html>
